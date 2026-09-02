@@ -1,0 +1,1810 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17233d">
+  <title>Как программа принимает решения? — Python, 6 класс</title>
+  <style>
+    :root {
+      --ink: #17233d;
+      --muted: #65708a;
+      --paper: #fffdf7;
+      --white: #ffffff;
+      --violet: #6c5ce7;
+      --violet-dark: #4d3dcc;
+      --sky: #48a7ff;
+      --mint: #20c9a6;
+      --orange: #ff9f43;
+      --pink: #ff6685;
+      --yellow: #ffd166;
+      --green: #25b579;
+      --red: #eb5757;
+      --code: #172238;
+      --shadow: 0 20px 60px rgba(23, 35, 61, .16);
+      --radius: clamp(22px, 2.2vw, 38px);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #111a2e;
+      color: var(--ink);
+      font-family: "Segoe UI", "Aptos", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .deck {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      isolation: isolate;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: clamp(20px, 3.2vh, 42px);
+      padding: clamp(42px, 5.5vh, 70px) clamp(52px, 6vw, 110px) clamp(72px, 9vh, 100px);
+      background:
+        radial-gradient(circle at 92% 7%, rgba(108, 92, 231, .13) 0 8%, transparent 8.3%),
+        radial-gradient(circle at 6% 92%, rgba(72, 167, 255, .14) 0 10%, transparent 10.3%),
+        var(--paper);
+      opacity: 0;
+      transform: translateX(4%);
+      pointer-events: none;
+      transition: opacity .36s ease, transform .42s cubic-bezier(.2,.75,.2,1);
+    }
+
+    .slide.active {
+      opacity: 1;
+      transform: translateX(0);
+      pointer-events: auto;
+      z-index: 2;
+    }
+
+    .slide.leaving { transform: translateX(-3%); }
+
+    .slide::before,
+    .slide::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .slide::before {
+      width: clamp(90px, 10vw, 180px);
+      height: clamp(90px, 10vw, 180px);
+      right: 1.2vw;
+      bottom: 14vh;
+      border: clamp(18px, 2.2vw, 34px) solid rgba(255, 159, 67, .10);
+    }
+
+    .slide::after {
+      width: clamp(24px, 3vw, 50px);
+      height: clamp(24px, 3vw, 50px);
+      left: 3vw;
+      top: 9vh;
+      background: rgba(32, 201, 166, .16);
+    }
+
+    .theme-violet { --accent: var(--violet); --soft: #f0edff; }
+    .theme-sky { --accent: var(--sky); --soft: #eaf6ff; }
+    .theme-mint { --accent: var(--mint); --soft: #e8fbf6; }
+    .theme-orange { --accent: var(--orange); --soft: #fff2e2; }
+    .theme-pink { --accent: var(--pink); --soft: #fff0f4; }
+
+    .slide-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 30px;
+      min-width: 0;
+    }
+
+    .kicker {
+      margin: 0 0 10px;
+      color: var(--accent);
+      font-size: clamp(14px, 1.2vw, 20px);
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      max-width: 980px;
+      margin-bottom: 20px;
+      font-size: clamp(50px, 6.4vw, 105px);
+      line-height: .98;
+      letter-spacing: -.055em;
+    }
+
+    h2 {
+      margin: 0;
+      max-width: 92vw;
+      font-size: clamp(34px, 4.2vw, 68px);
+      line-height: 1.03;
+      letter-spacing: -.04em;
+      white-space: nowrap;
+    }
+
+    h2.long-title { font-size: clamp(30px, 3.55vw, 60px); }
+
+    h3 {
+      margin-bottom: 14px;
+      font-size: clamp(24px, 2.3vw, 38px);
+      line-height: 1.12;
+    }
+
+    p, .body-text {
+      font-size: clamp(20px, 2vw, 34px);
+      line-height: 1.35;
+    }
+
+    .subtitle {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(22px, 2.2vw, 36px);
+      line-height: 1.35;
+    }
+
+    .accent { color: var(--accent); }
+    .soft { color: var(--muted); }
+    .center { text-align: center; }
+    .big { font-size: clamp(34px, 4vw, 68px); font-weight: 850; line-height: 1.05; }
+    .small { font-size: clamp(16px, 1.35vw, 22px); }
+    .mono { font-family: Consolas, "Cascadia Mono", "Courier New", monospace; }
+
+    .content {
+      min-height: 0;
+      display: grid;
+      align-content: center;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);
+      gap: clamp(32px, 5vw, 90px);
+      align-items: center;
+      min-height: 0;
+    }
+
+    .hero-visual {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 48vh;
+    }
+
+    .hero-orb {
+      width: min(34vw, 480px);
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(145deg, var(--accent), var(--violet-dark));
+      color: white;
+      box-shadow: 0 28px 80px color-mix(in srgb, var(--accent) 28%, transparent);
+      font-size: clamp(100px, 15vw, 230px);
+      font-weight: 900;
+      transform: rotate(-4deg);
+    }
+
+    .orbit-label {
+      position: absolute;
+      padding: 12px 22px;
+      border: 3px solid rgba(23,35,61,.08);
+      border-radius: 18px;
+      background: white;
+      box-shadow: var(--shadow);
+      font-size: clamp(20px, 1.8vw, 30px);
+      font-weight: 800;
+    }
+    .orbit-label.one { top: 7%; right: 1%; transform: rotate(5deg); }
+    .orbit-label.two { bottom: 10%; left: -2%; transform: rotate(-5deg); }
+
+    .price-scene {
+      display: grid;
+      grid-template-columns: .78fr 2.2fr;
+      gap: clamp(30px, 5vw, 74px);
+      align-items: stretch;
+    }
+
+    .product {
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 8px;
+      min-height: 340px;
+      border-radius: var(--radius);
+      background: linear-gradient(150deg, #fff4de, #ffe5ed);
+      box-shadow: var(--shadow);
+    }
+    .product .emoji { font-size: clamp(88px, 11vw, 170px); filter: drop-shadow(0 14px 16px rgba(23,35,61,.12)); }
+    .price { font-size: clamp(36px, 4vw, 64px); font-weight: 900; }
+
+    .people {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: clamp(14px, 2vw, 28px);
+      align-items: stretch;
+    }
+
+    .person {
+      position: relative;
+      min-width: 0;
+      padding: clamp(20px, 2.2vw, 34px) 16px;
+      border: 3px solid transparent;
+      border-radius: var(--radius);
+      background: white;
+      color: var(--ink);
+      box-shadow: 0 14px 40px rgba(23,35,61,.10);
+      cursor: pointer;
+      transition: transform .2s ease, border-color .2s ease, background .2s ease;
+    }
+    .person:hover { transform: translateY(-6px); }
+    .person:focus-visible { outline: 5px solid rgba(72,167,255,.35); outline-offset: 3px; }
+    .person .face { display: block; margin-bottom: 14px; font-size: clamp(50px, 6vw, 92px); }
+    .person .name { display: block; font-size: clamp(22px, 2vw, 34px); font-weight: 850; }
+    .person .cash { display: block; margin-top: 8px; color: var(--accent); font-size: clamp(28px, 3vw, 48px); font-weight: 900; }
+    .person .answer { display: block; min-height: 1.4em; margin-top: 12px; font-size: clamp(16px, 1.35vw, 22px); font-weight: 800; }
+    .person.yes { border-color: var(--green); background: #ecfff7; }
+    .person.no { border-color: var(--red); background: #fff2f2; }
+
+    .rule-stack {
+      display: grid;
+      gap: clamp(22px, 3vh, 34px);
+      width: min(100%, 1100px);
+      margin: auto;
+    }
+
+    .rule {
+      display: grid;
+      grid-template-columns: minmax(140px, .42fr) 70px minmax(0, 1.5fr);
+      align-items: center;
+      gap: 24px;
+      padding: clamp(24px, 3vw, 40px);
+      border-radius: var(--radius);
+      background: white;
+      box-shadow: var(--shadow);
+    }
+    .rule-word { color: var(--accent); font-size: clamp(34px, 4vw, 62px); font-weight: 950; }
+    .rule-arrow { color: var(--orange); font-size: clamp(40px, 5vw, 72px); font-weight: 900; text-align: center; }
+    .rule-text { font-size: clamp(24px, 2.6vw, 42px); font-weight: 750; line-height: 1.15; }
+
+    .elif-stack { gap: clamp(10px, 1.4vh, 16px); }
+    .elif-stack .rule {
+      grid-template-columns: .55fr 48px 1.2fr !important;
+      gap: 14px;
+      padding: clamp(14px, 1.5vw, 22px) clamp(18px, 2vw, 28px);
+      border-radius: 22px;
+    }
+    .elif-stack .rule-word { font-size: clamp(30px, 3.1vw, 50px); }
+    .elif-stack .rule-arrow { font-size: clamp(30px, 3.2vw, 48px); }
+    .elif-stack .rule-text { font-size: clamp(19px, 1.8vw, 29px); line-height: 1.08; }
+    .elif-stack .body-text { font-size: clamp(18px, 1.55vw, 25px); line-height: 1.24; }
+
+    [data-step] {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity .35s ease, transform .35s ease;
+    }
+    [data-step].revealed { opacity: 1; transform: translateY(0); }
+
+    .reveal-button, .action-button, .choice-button, .value-button {
+      border: 0;
+      border-radius: 16px;
+      cursor: pointer;
+      font-weight: 850;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .reveal-button:hover, .action-button:hover, .choice-button:hover, .value-button:hover { transform: translateY(-3px); }
+    .reveal-button:focus-visible, .action-button:focus-visible, .choice-button:focus-visible, .value-button:focus-visible { outline: 5px solid rgba(72,167,255,.35); outline-offset: 3px; }
+    .reveal-button, .action-button {
+      justify-self: start;
+      padding: 14px 24px;
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 25%, transparent);
+      font-size: clamp(17px, 1.4vw, 23px);
+    }
+
+    .quiz-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: clamp(18px, 2.4vw, 34px);
+      align-items: stretch;
+    }
+
+    .six-quiz-content { align-content: stretch; }
+    .quiz-grid.six {
+      height: 100%;
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: clamp(14px, 1.8vw, 26px);
+    }
+    .quiz-grid.six .flip-card {
+      min-height: 0;
+      height: 100%;
+      gap: 10px;
+      padding: 16px 20px;
+    }
+    .quiz-grid.six .flip-card code { font-size: clamp(23px, 2.25vw, 38px); }
+    .quiz-grid.six .flip-card .result { font-size: clamp(17px, 1.45vw, 24px); }
+
+    .operator-board {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 clamp(42px, 6vw, 96px);
+      width: min(100%, 1120px);
+      margin: auto;
+    }
+    .operator-row {
+      display: grid;
+      grid-template-columns: clamp(100px, 9vw, 150px) 1fr;
+      align-items: center;
+      gap: 24px;
+      min-height: clamp(92px, 13vh, 126px);
+      padding: 14px 10px;
+      border-bottom: 3px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+    .operator-row:nth-last-child(-n + 2) { border-bottom: 0; }
+    .operator-symbol {
+      color: var(--accent);
+      font: 950 clamp(38px, 4.4vw, 70px)/1 Consolas, "Cascadia Mono", monospace;
+      text-align: center;
+    }
+    .operator-meaning {
+      font-size: clamp(22px, 2.2vw, 36px);
+      font-weight: 800;
+      line-height: 1.12;
+    }
+
+    .flip-card {
+      min-height: clamp(220px, 31vh, 330px);
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 24px;
+      padding: 24px;
+      border: 0;
+      border-radius: var(--radius);
+      background: white;
+      box-shadow: var(--shadow);
+      color: var(--ink);
+      cursor: pointer;
+      transition: transform .2s ease, background .25s ease;
+    }
+    .flip-card:hover { transform: translateY(-5px) rotate(-.3deg); }
+    .flip-card code { font-size: clamp(26px, 2.8vw, 46px); font-weight: 850; }
+    .flip-card .result { color: var(--muted); font-size: clamp(21px, 2vw, 32px); font-weight: 900; }
+    .flip-card.flipped.true { background: #eafff7; box-shadow: inset 0 0 0 4px var(--green), var(--shadow); }
+    .flip-card.flipped.false { background: #fff0f0; box-shadow: inset 0 0 0 4px var(--red), var(--shadow); }
+
+    .boolean-demo {
+      display: grid;
+      grid-template-columns: 1fr 100px 1fr;
+      gap: 32px;
+      align-items: center;
+      width: min(100%, 1120px);
+      margin: auto;
+    }
+    .boolean-side { display: grid; gap: 24px; }
+    .expression, .boolean-result {
+      padding: 22px 30px;
+      border-radius: 20px;
+      background: white;
+      box-shadow: var(--shadow);
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: clamp(26px, 3vw, 48px);
+      font-weight: 850;
+      text-align: center;
+    }
+    .boolean-result.true { color: var(--green); }
+    .boolean-result.false { color: var(--red); }
+    .down-arrow { color: var(--accent); font-size: clamp(48px, 6vw, 90px); font-weight: 900; text-align: center; }
+
+    .code-card {
+      position: relative;
+      overflow: hidden;
+      width: 100%;
+      border-radius: var(--radius);
+      background: var(--code);
+      color: #eef3ff;
+      box-shadow: 0 26px 70px rgba(23,34,56,.28);
+    }
+    .code-dots { display: flex; gap: 8px; padding: 18px 22px 4px; }
+    .code-dots i { width: 12px; height: 12px; border-radius: 50%; background: #ff6b6b; }
+    .code-dots i:nth-child(2) { background: #ffd166; }
+    .code-dots i:nth-child(3) { background: #2dd4a9; }
+    pre {
+      margin: 0;
+      padding: clamp(22px, 2.6vw, 42px);
+      overflow: hidden;
+      white-space: pre-wrap;
+      tab-size: 4;
+      font: 700 clamp(22px, 2.15vw, 36px)/1.5 Consolas, "Cascadia Mono", "Courier New", monospace;
+    }
+    .compact pre { font-size: clamp(18px, 1.65vw, 28px); line-height: 1.46; }
+    .kw { color: #c792ea; }
+    .var { color: #82aaff; }
+    .num { color: #f6c177; }
+    .str { color: #a6e3a1; }
+    .fn { color: #89dceb; }
+    .op { color: #ff8fa3; }
+    .comment { color: #8e9ab7; }
+    .blank { color: var(--yellow); letter-spacing: .04em; }
+    .line-focus { display: inline-block; margin-left: -12px; padding: 0 12px; border-radius: 8px; background: rgba(108,92,231,.23); }
+
+    .question-panel {
+      display: grid;
+      place-items: center;
+      min-height: 290px;
+      padding: clamp(28px, 4vw, 62px);
+      border-radius: var(--radius);
+      background: var(--soft);
+      text-align: center;
+    }
+    .question-mark { color: var(--accent); font-size: clamp(72px, 10vw, 150px); font-weight: 950; line-height: .8; }
+
+    .flow {
+      width: min(100%, 1100px);
+      margin: auto;
+      text-align: center;
+    }
+    .flow-condition {
+      display: inline-block;
+      padding: 22px 40px;
+      border: 4px solid var(--accent);
+      border-radius: 24px;
+      background: white;
+      font: 850 clamp(24px, 2.7vw, 44px) Consolas, "Cascadia Mono", monospace;
+      box-shadow: var(--shadow);
+    }
+    .branch-line {
+      width: 64%;
+      height: 56px;
+      margin: 0 auto;
+      border-right: 5px solid #b7bfd2;
+      border-bottom: 5px solid #b7bfd2;
+      border-left: 5px solid #b7bfd2;
+      border-radius: 0 0 22px 22px;
+    }
+    .branch-labels, .branch-results { display: grid; grid-template-columns: 1fr 1fr; gap: 120px; }
+    .branch-labels { margin: -16px 12% 10px; color: var(--muted); font-size: clamp(20px, 2vw, 32px); font-weight: 900; }
+    .branch-results > div {
+      padding: 26px;
+      border-radius: var(--radius);
+      background: white;
+      box-shadow: var(--shadow);
+      font-size: clamp(22px, 2.35vw, 38px);
+      font-weight: 850;
+    }
+    .branch-results .yes-result { border-bottom: 7px solid var(--green); }
+    .branch-results .no-result { border-bottom: 7px solid var(--red); }
+
+    .output-box {
+      min-height: 100px;
+      display: grid;
+      place-items: center;
+      margin-top: 22px;
+      padding: 20px;
+      border-radius: 18px;
+      background: #f1f4fa;
+      color: var(--muted);
+      font: 800 clamp(20px, 1.8vw, 30px) Consolas, "Cascadia Mono", monospace;
+      text-align: center;
+    }
+    .output-box.good { background: #e8fff6; color: #13895d; }
+    .output-box.bad { background: #fff0f0; color: #c53d3d; }
+
+    .value-row, .choices {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 22px;
+    }
+    .value-button, .choice-button {
+      padding: 13px 20px;
+      border: 3px solid #dce2ed;
+      background: white;
+      color: var(--ink);
+      font-size: clamp(17px, 1.45vw, 23px);
+    }
+    .value-button.selected, .choice-button.selected { border-color: var(--accent); background: var(--soft); }
+    .choice-button.correct { border-color: var(--green); background: #e9fff6; color: #137c57; }
+    .choice-button.wrong { border-color: var(--red); background: #fff1f1; color: #b53737; }
+
+    .practice-content {
+      align-content: start;
+      gap: clamp(16px, 2.2vh, 26px);
+    }
+    .task-switcher {
+      display: flex;
+      justify-content: center;
+      gap: clamp(10px, 1.2vw, 18px);
+    }
+    .task-tab {
+      width: clamp(48px, 4.2vw, 64px);
+      height: clamp(48px, 4.2vw, 64px);
+      border: 3px solid color-mix(in srgb, var(--accent) 26%, white);
+      border-radius: 18px;
+      background: white;
+      color: var(--ink);
+      cursor: pointer;
+      font-size: clamp(20px, 1.8vw, 28px);
+      font-weight: 900;
+      box-shadow: 0 8px 22px rgba(23,35,61,.08);
+      transition: transform .18s ease, background .18s ease, color .18s ease, box-shadow .18s ease;
+    }
+    .task-tab:hover { transform: translateY(-3px); }
+    .task-tab:focus-visible { outline: 5px solid rgba(72,167,255,.35); outline-offset: 3px; }
+    .task-tab.selected {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: white;
+      box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 28%, transparent);
+    }
+    .practice-task {
+      display: none;
+      grid-template-columns: minmax(300px, .8fr) minmax(500px, 1.2fr);
+      gap: clamp(24px, 3.2vw, 52px);
+      align-items: stretch;
+      min-height: 350px;
+    }
+    .practice-task.active { display: grid; }
+    .task-prompt {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      align-content: start;
+      min-width: 0;
+      padding: clamp(22px, 2.5vw, 36px);
+      border-radius: var(--radius);
+      background: var(--soft);
+    }
+    .task-meta { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .task-emoji { font-size: clamp(42px, 4.2vw, 66px); line-height: 1; }
+    .task-label {
+      color: var(--accent);
+      font-size: clamp(14px, 1.1vw, 18px);
+      font-weight: 900;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+    .task-prompt h3 { margin-bottom: 12px; font-size: clamp(25px, 2.35vw, 38px); }
+    .task-prompt p { margin: 0 0 18px; color: var(--muted); font-size: clamp(18px, 1.65vw, 26px); }
+    .task-prompt .action-button { align-self: end; }
+    .task-answer {
+      display: grid;
+      min-width: 0;
+      min-height: 350px;
+    }
+    .task-answer > * { grid-area: 1 / 1; }
+    .answer-placeholder {
+      display: grid;
+      place-items: center;
+      padding: 30px;
+      border: 4px dashed color-mix(in srgb, var(--accent) 32%, white);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.72);
+      color: var(--muted);
+      font-size: clamp(21px, 2vw, 31px);
+      font-weight: 850;
+      line-height: 1.3;
+      text-align: center;
+      transition: opacity .22s ease;
+    }
+    .task-answer .code-card {
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px);
+      transition: opacity .25s ease, transform .25s ease, visibility .25s;
+    }
+    .task-answer.visible .answer-placeholder { opacity: 0; }
+    .task-answer.visible .code-card { opacity: 1; visibility: visible; transform: none; }
+    .task-answer pre { font-size: clamp(17px, 1.52vw, 25px); line-height: 1.44; }
+
+    .advanced-practice .practice-task,
+    .advanced-practice .task-answer { min-height: 360px; }
+    .advanced-practice .task-prompt p { font-size: clamp(17px, 1.48vw, 23px); }
+    .advanced-practice .task-answer pre { font-size: clamp(15px, 1.23vw, 21px); line-height: 1.34; }
+
+    .final-practice .practice-task,
+    .final-practice .task-answer { min-height: 360px; }
+    .final-practice .task-prompt p { font-size: clamp(16px, 1.42vw, 22px); }
+    .final-practice .task-answer pre {
+      padding: clamp(18px, 2vw, 30px);
+      font-size: clamp(14px, 1.12vw, 19px);
+      line-height: 1.28;
+    }
+
+    .ternary-compare {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 88px minmax(0, 1fr);
+      gap: clamp(18px, 2.4vw, 34px);
+      align-items: center;
+    }
+    .ternary-block { min-width: 0; }
+    .ternary-label {
+      margin: 0 0 12px;
+      color: var(--accent);
+      font-size: clamp(16px, 1.35vw, 22px);
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .ternary-arrow {
+      color: var(--accent);
+      font-size: clamp(54px, 5.5vw, 82px);
+      font-weight: 950;
+      text-align: center;
+    }
+    .ternary-compare pre { font-size: clamp(17px, 1.48vw, 25px); line-height: 1.42; }
+    .ternary-one-line pre {
+      padding-inline: clamp(18px, 1.8vw, 28px);
+      font-size: clamp(15px, 1.16vw, 20px);
+      white-space: pre;
+    }
+    .ternary-formula {
+      margin-top: clamp(18px, 2.5vh, 28px);
+      padding: 16px 22px;
+      border-left: 7px solid var(--accent);
+      border-radius: 14px;
+      background: var(--soft);
+      font-size: clamp(18px, 1.7vw, 27px);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .ternary-breakdown {
+      display: grid;
+      gap: clamp(22px, 3vh, 34px);
+      width: min(100%, 1180px);
+      margin: auto;
+    }
+    .ternary-syntax pre {
+      padding-block: clamp(24px, 3vw, 38px);
+      font-size: clamp(20px, 1.9vw, 31px);
+      text-align: center;
+      white-space: nowrap;
+    }
+    .ternary-steps {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: clamp(14px, 2vw, 28px);
+      align-items: start;
+    }
+    .ternary-step {
+      min-width: 0;
+      text-align: center;
+    }
+    .ternary-step-number {
+      display: inline-grid;
+      place-items: center;
+      width: clamp(38px, 3.4vw, 52px);
+      aspect-ratio: 1;
+      margin-bottom: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      font-size: clamp(20px, 1.8vw, 28px);
+      font-weight: 950;
+    }
+    .ternary-step strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: clamp(20px, 1.8vw, 28px);
+      line-height: 1.15;
+    }
+    .ternary-step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(16px, 1.35vw, 22px);
+      line-height: 1.28;
+    }
+    .ternary-step-arrow {
+      padding-top: clamp(44px, 4.4vw, 66px);
+      color: var(--orange);
+      font-size: clamp(32px, 3.2vw, 50px);
+      font-weight: 950;
+    }
+    .ternary-step-or {
+      color: var(--muted);
+      font-size: clamp(16px, 1.35vw, 22px);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .ternary-outcome {
+      margin: 0;
+      padding: 15px 22px;
+      border-left: 7px solid var(--accent);
+      border-radius: 14px;
+      background: var(--soft);
+      font-size: clamp(18px, 1.55vw, 25px);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .indent-guides pre { position: relative; }
+    .indent-good { box-shadow: inset 8px 0 0 var(--green), 0 26px 70px rgba(23,34,56,.28); }
+    .indent-bad { box-shadow: inset 8px 0 0 var(--red), 0 26px 70px rgba(23,34,56,.28); }
+    .code-label { position: absolute; top: 16px; right: 20px; z-index: 2; font-size: clamp(22px, 2.4vw, 38px); font-weight: 900; }
+
+    .scenario {
+      display: grid;
+      grid-template-columns: .68fr 1.32fr;
+      gap: clamp(30px, 4vw, 70px);
+      align-items: center;
+    }
+    .scene-art {
+      display: grid;
+      place-items: center;
+      align-content: center;
+      min-height: 390px;
+      padding: 24px;
+      border-radius: var(--radius);
+      background: var(--soft);
+      text-align: center;
+    }
+    .scene-art .emoji { font-size: clamp(100px, 13vw, 200px); filter: drop-shadow(0 18px 18px rgba(23,35,61,.13)); }
+    .scene-art p { margin: 12px 0 0; font-weight: 850; }
+
+    .bug-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(24px, 3vw, 48px);
+      align-items: start;
+    }
+    .bug-card { min-width: 0; }
+    .bug-card h3 { display: flex; align-items: center; gap: 12px; }
+    .fix {
+      margin-top: 14px;
+      padding: 14px 18px;
+      border-left: 6px solid var(--green);
+      border-radius: 10px;
+      background: #e9fff6;
+      color: #137c57;
+      font-size: clamp(18px, 1.5vw, 24px);
+      font-weight: 800;
+    }
+
+    .simulator {
+      padding: clamp(24px, 3vw, 40px);
+      border-radius: var(--radius);
+      background: var(--soft);
+    }
+    .simulator label { display: block; margin-bottom: 12px; font-size: clamp(20px, 1.8vw, 29px); font-weight: 850; }
+    .input-row { display: flex; gap: 12px; }
+    .input-row input {
+      min-width: 0;
+      width: 100%;
+      padding: 15px 18px;
+      border: 3px solid transparent;
+      border-radius: 15px;
+      background: white;
+      color: var(--ink);
+      font-size: clamp(20px, 2vw, 32px);
+      font-weight: 850;
+    }
+    .input-row input:focus { outline: none; border-color: var(--accent); }
+
+    .recap {
+      display: grid;
+      grid-template-columns: .9fr 1.1fr;
+      gap: clamp(30px, 5vw, 80px);
+      align-items: center;
+    }
+    .recap-questions { display: grid; gap: 14px; }
+    .recap-q {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+      width: 100%;
+      padding: 18px 22px;
+      border: 0;
+      border-radius: 16px;
+      background: white;
+      color: var(--ink);
+      box-shadow: 0 10px 30px rgba(23,35,61,.09);
+      cursor: pointer;
+      text-align: left;
+      font-size: clamp(18px, 1.7vw, 27px);
+      font-weight: 800;
+    }
+    .recap-q .recap-answer { color: var(--accent); opacity: 0; transform: translateX(12px); transition: .25s ease; }
+    .recap-q.open .recap-answer { opacity: 1; transform: none; }
+
+    .teacher-note { display: none; }
+
+    .nav-shell {
+      position: fixed;
+      right: clamp(16px, 2.3vw, 34px);
+      bottom: clamp(17px, 2.4vh, 30px);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid rgba(255,255,255,.72);
+      border-radius: 18px;
+      background: rgba(255,255,255,.78);
+      box-shadow: 0 12px 36px rgba(23,35,61,.16);
+      backdrop-filter: blur(16px);
+    }
+    .nav-button {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 22px;
+      font-weight: 900;
+    }
+    .nav-button:hover { background: rgba(108,92,231,.11); }
+    .nav-button:disabled { opacity: .3; cursor: default; }
+    .counter { min-width: 62px; color: var(--muted); font-size: 15px; font-weight: 850; text-align: center; }
+
+    .progress-track {
+      position: fixed;
+      z-index: 30;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 7px;
+      background: rgba(23,35,61,.08);
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--violet), var(--sky), var(--mint));
+      transition: width .35s ease;
+    }
+
+    .notes-panel {
+      position: fixed;
+      z-index: 40;
+      left: clamp(18px, 2.5vw, 36px);
+      bottom: clamp(22px, 3.3vh, 44px);
+      width: min(520px, calc(100vw - 36px));
+      max-height: 42vh;
+      overflow: auto;
+      padding: 22px 24px;
+      border-radius: 18px;
+      background: rgba(23,35,61,.96);
+      color: white;
+      box-shadow: 0 18px 60px rgba(0,0,0,.3);
+      transform: translateY(130%);
+      opacity: 0;
+      transition: .28s ease;
+    }
+    .notes-panel.open { transform: none; opacity: 1; }
+    .notes-panel h4 { margin: 0 0 10px; font-size: 18px; }
+    .notes-panel p { margin: 8px 0; color: #dbe3f5; font-size: 16px; line-height: 1.45; }
+
+    .help-overlay {
+      position: fixed;
+      z-index: 50;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(17,26,46,.72);
+      backdrop-filter: blur(10px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .22s ease;
+    }
+    .help-overlay.open { opacity: 1; pointer-events: auto; }
+    .help-card {
+      width: min(680px, 94vw);
+      padding: clamp(26px, 4vw, 48px);
+      border-radius: 28px;
+      background: white;
+      box-shadow: 0 24px 90px rgba(0,0,0,.35);
+    }
+    .help-card h3 { margin-bottom: 22px; }
+    .shortcut-grid { display: grid; grid-template-columns: auto 1fr; gap: 14px 20px; align-items: center; }
+    kbd { min-width: 54px; padding: 8px 12px; border: 2px solid #d9deea; border-bottom-width: 5px; border-radius: 10px; background: #f7f8fb; font-weight: 850; text-align: center; }
+
+    .screen-reader {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 900px), (max-aspect-ratio: 4/3) {
+      .slide { padding-inline: 5vw; }
+      h2 { white-space: normal; }
+      .two-col, .price-scene, .scenario, .recap { grid-template-columns: 1fr; gap: 24px; }
+      .hero-visual { display: none; }
+      .product { min-height: 180px; grid-template-columns: auto 1fr; padding: 20px; }
+      .product .emoji { font-size: 74px; }
+      .people { min-height: 220px; }
+      .scene-art { display: none; }
+      .bug-grid { gap: 18px; }
+      .boolean-demo { grid-template-columns: 1fr 55px 1fr; gap: 14px; }
+      .branch-labels, .branch-results { gap: 40px; }
+      .operator-board { gap: 0 28px; }
+      .practice-task { grid-template-columns: minmax(260px, .78fr) minmax(430px, 1.22fr); gap: 20px; }
+      .ternary-compare { grid-template-columns: 1fr 56px 1fr; gap: 14px; }
+      .ternary-steps { gap: 12px; }
+    }
+
+    @media (max-height: 650px) {
+      .slide { padding-top: 28px; padding-bottom: 64px; gap: 18px; }
+      h2 { font-size: clamp(30px, 4vw, 48px); }
+      pre { font-size: clamp(18px, 2vw, 28px); padding-block: 18px; }
+      .product, .scene-art { min-height: 280px; }
+      .quiz-grid .flip-card { min-height: 210px; }
+      .practice-task, .task-answer { min-height: 300px; }
+      .task-prompt { padding: 20px; }
+    }
+
+    @media print {
+      html, body { overflow: visible; background: white; }
+      .deck { width: auto; height: auto; }
+      .slide { position: relative; display: grid !important; width: 100vw; height: 56.25vw; max-height: 100vh; page-break-after: always; opacity: 1 !important; transform: none !important; }
+      .nav-shell, .progress-track, .notes-panel, .help-overlay { display: none !important; }
+      [data-step] { opacity: 1 !important; transform: none !important; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" id="deck" aria-live="polite">
+    <section class="slide theme-violet active" data-title="Как программа принимает решения?" aria-hidden="false">
+      <div></div>
+      <div class="content two-col">
+        <div>
+          <p class="kicker">Python · 6 класс</p>
+          <h1>Как программа принимает решения?</h1>
+          <p class="subtitle">Сегодня научим компьютер выбирать, что делать дальше.</p>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hero-orb">?</div>
+          <div class="orbit-label one">если — делаем</div>
+          <div class="orbit-label two">иначе — выбираем другое</div>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>0–7 минут · Вход в урок</h4><p>Поздоровайтесь и предложите классу бытовой выбор. Не называйте if/else сразу: сначала дети должны почувствовать саму идею решения.</p></div>
+    </section>
+
+    <section class="slide theme-orange" data-title="Мороженое — 100 ₽" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Разогрев</p><h2>Мороженое стоит 100 ₽</h2></div>
+      </header>
+      <div class="content">
+        <div class="price-scene">
+          <div class="product" aria-label="Мороженое стоит 100 рублей">
+            <span class="emoji">🍦</span>
+            <span class="price">100 ₽</span>
+          </div>
+          <div>
+            <p class="big" style="margin-bottom:24px">Кому продадим?</p>
+            <div class="people">
+              <button class="person" data-person data-outcome="yes" aria-label="Маша, 150 рублей">
+                <span class="face">👧🏻</span><span class="name">Маша</span><span class="cash">150 ₽</span><span class="answer">Нажми, чтобы проверить</span>
+              </button>
+              <button class="person" data-person data-outcome="no" aria-label="Саша, 70 рублей">
+                <span class="face">👦🏼</span><span class="name">Саша</span><span class="cash">70 ₽</span><span class="answer">Нажми, чтобы проверить</span>
+              </button>
+              <button class="person" data-person data-outcome="yes" aria-label="Катя, 100 рублей">
+                <span class="face">👧🏽</span><span class="name">Катя</span><span class="cash">100 ₽</span><span class="answer">Нажми, чтобы проверить</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>0–7 минут · Бытовая ситуация</h4><p>Попросите детей ответить до нажатия. Обязательно задержитесь на Кате: ровно 100 ₽ тоже достаточно — это подготовка к знаку ≥.</p></div>
+    </section>
+
+    <section class="slide theme-mint" data-title="Какое правило мы использовали?" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Формулируем вместе</p><h2>Как продавец принимает решение?</h2></div>
+        <button class="reveal-button" data-reveal-next>Открыть правило</button>
+      </header>
+      <div class="content">
+        <div class="rule-stack">
+          <div class="rule" data-step="1">
+            <span class="rule-word">ЕСЛИ</span><span class="rule-arrow">→</span><span class="rule-text">денег 100 ₽ или больше — продаём</span>
+          </div>
+          <div class="rule" data-step="2">
+            <span class="rule-word">ИНАЧЕ</span><span class="rule-arrow">→</span><span class="rule-text">говорим, что денег недостаточно</span>
+          </div>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>7–12 минут · Человеческий алгоритм</h4><p>Соберите формулировку из ответов детей. Открывайте по одной строке. Свяжите «100 или больше» с ≥.</p></div>
+    </section>
+
+    <section class="slide theme-orange" data-title="Вспомним знаки сравнения" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Напоминалка</p><h2>Вспомним знаки сравнения</h2></div>
+        <p class="small soft">Читаем слева направо</p>
+      </header>
+      <div class="content">
+        <div class="operator-board" aria-label="Шесть операторов сравнения Python">
+          <div class="operator-row"><span class="operator-symbol">&gt;</span><span class="operator-meaning">больше</span></div>
+          <div class="operator-row"><span class="operator-symbol">&lt;</span><span class="operator-meaning">меньше</span></div>
+          <div class="operator-row"><span class="operator-symbol">&gt;=</span><span class="operator-meaning">больше или равно</span></div>
+          <div class="operator-row"><span class="operator-symbol">&lt;=</span><span class="operator-meaning">меньше или равно</span></div>
+          <div class="operator-row"><span class="operator-symbol">==</span><span class="operator-meaning">равно</span></div>
+          <div class="operator-row"><span class="operator-symbol">!=</span><span class="operator-meaning">не равно</span></div>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>12–16 минут · Напоминание операторов</h4><p>Быстро прочитайте шесть знаков вместе с классом. Отдельно напомните: одно = присваивает значение, а два == сравнивают.</p></div>
+    </section>
+
+    <section class="slide theme-sky" data-title="Правда или неправда?" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Мини-квиз</p><h2>Правда или неправда?</h2></div>
+        <p class="small soft">Сначала голосуем · потом нажимаем</p>
+      </header>
+      <div class="content six-quiz-content">
+        <div class="quiz-grid six">
+          <button class="flip-card" data-flip data-answer="true"><code>150 &gt; 100</code><span class="result">Проверить</span></button>
+          <button class="flip-card" data-flip data-answer="false"><code>70 &lt; 50</code><span class="result">Проверить</span></button>
+          <button class="flip-card" data-flip data-answer="true"><code>100 &gt;= 100</code><span class="result">Проверить</span></button>
+          <button class="flip-card" data-flip data-answer="false"><code>120 &lt;= 100</code><span class="result">Проверить</span></button>
+          <button class="flip-card" data-flip data-answer="true"><code>100 == 100</code><span class="result">Проверить</span></button>
+          <button class="flip-card" data-flip data-answer="false"><code>100 != 100</code><span class="result">Проверить</span></button>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>16–21 минута · Повторение сравнений</h4><p>Используйте голосование руками или 👍/👎. В примерах представлены все шесть знаков; ответы распределены поровну: три True и три False.</p></div>
+    </section>
+
+    <section class="slide theme-violet" data-title="Наша первая проблема" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Новая задача</p><h2>У программы есть число. А решения нет.</h2></div>
+      </header>
+      <div class="content two-col">
+        <div class="code-card">
+          <div class="code-dots"><i></i><i></i><i></i></div>
+          <pre><code><span class="var">money</span> <span class="op">=</span> <span class="num">150</span></code></pre>
+        </div>
+        <div class="question-panel">
+          <div><div class="question-mark">?</div><p class="big" style="margin:20px 0 0">Как понять: продавать мороженое или нет?</p></div>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>21–27 минут · Проблемная ситуация</h4><p>Соберите идеи: сравнить сумму с ценой, выполнить действие только при верном условии. Это сильная точка входа в новый материал.</p></div>
+    </section>
+
+    <section class="slide theme-violet" data-title="Знакомимся с if" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Новое слово</p><h2>if значит «если»</h2></div>
+        <button class="reveal-button" data-reveal-next>Следующая строка</button>
+      </header>
+      <div class="content two-col">
+        <div class="code-card">
+          <div class="code-dots"><i></i><i></i><i></i></div>
+          <pre><code><span class="var">money</span> <span class="op">=</span> <span class="num">150</span>
+
+<span data-step="1"><span class="line-focus"><span class="kw">if</span> <span class="var">money</span> <span class="op">&gt;=</span> <span class="num">100</span>:</span></span>
+<span data-step="2">    <span class="fn">print</span>(<span class="str">"Продаём мороженое!"</span>)</span></code></pre>
+        </div>
+        <div>
+          <p class="big"><span class="accent">if</span> → если условие верно…</p>
+          <p class="subtitle" data-step="2">…выполняем команду с отступом.</p>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>27–33 минуты · Первый if</h4><p>Открывайте код построчно. Попросите детей прочитать условие вслух по-русски. После появления print уточните, когда он выполнится.</p></div>
+    </section>
+
+    <section class="slide theme-sky" data-title="Как работает if?" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Маршрут программы</p><h2>if проверяет условие и выбирает путь</h2></div>
+      </header>
+      <div class="content">
+        <div class="flow">
+          <div class="flow-condition">money &gt;= 100?</div>
+          <div class="branch-line"></div>
+          <div class="branch-labels"><span style="color:var(--green)">True</span><span style="color:var(--red)">False</span></div>
+          <div class="branch-results">
+            <div class="yes-result">Выполняем команду<br><span class="mono small">print(...)</span></div>
+            <div class="no-result">Пропускаем команду<br><span class="small soft">и идём дальше</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>33–38 минут · Схема</h4><p>Проведите три суммы по схеме: 150, 70 и 100. Пока не вводите else: ложная ветка просто пропускает команду.</p></div>
+    </section>
+
+    <section class="slide theme-orange" data-title="А если условие не выполнилось?" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Замечаем проблему</p><h2 class="long-title">А если условие не выполнилось?</h2></div>
+        <button class="reveal-button" data-reveal-next>Что увидит покупатель?</button>
+      </header>
+      <div class="content two-col">
+        <div class="code-card">
+          <div class="code-dots"><i></i><i></i><i></i></div>
+          <pre><code><span class="var">money</span> <span class="op">=</span> <span class="num">70</span>
+
+<span class="kw">if</span> <span class="var">money</span> <span class="op">&gt;=</span> <span class="num">100</span>:
+    <span class="fn">print</span>(<span class="str">"Продаём мороженое!"</span>)</code></pre>
+        </div>
+        <div class="question-panel">
+          <div>
+            <p class="big">Что появится на экране?</p>
+            <div class="output-box" data-step="1">Ничего</div>
+            <p class="body-text" data-step="2" style="margin:24px 0 0">Как сообщить, что денег недостаточно?</p>
+          </div>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>38–43 минуты · Потребность в else</h4><p>Не подсказывайте сразу. Дети должны заметить: покупатель не получает ответа. Спросите, как добавить вторую ветку.</p></div>
+    </section>
+
+    <section class="slide theme-mint" data-title="Добавляем else" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Вторая дорога</p><h2>else значит «иначе»</h2></div>
+      </header>
+      <div class="content two-col">
+        <div class="code-card">
+          <div class="code-dots"><i></i><i></i><i></i></div>
+          <pre><code><span class="var">money</span> <span class="op">=</span> <span class="num">70</span>
+
+<span class="kw">if</span> <span class="var">money</span> <span class="op">&gt;=</span> <span class="num">100</span>:
+    <span class="fn">print</span>(<span class="str">"Продаём мороженое!"</span>)
+<span class="line-focus"><span class="kw">else</span>:</span>
+    <span class="fn">print</span>(<span class="str">"Денег недостаточно"</span>)</code></pre>
+        </div>
+        <div class="rule-stack">
+          <div class="rule" style="grid-template-columns:.5fr 70px 1fr"><span class="rule-word">if</span><span class="rule-arrow">→</span><span class="rule-text">условие True</span></div>
+          <div class="rule" style="grid-template-columns:.5fr 70px 1fr"><span class="rule-word">else</span><span class="rule-arrow">→</span><span class="rule-text">условие False</span></div>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>43–48 минут · Полная конструкция</h4><p>Прочитайте программу человеческим языком. Подчеркните: выполняется ровно одна ветка. Проверьте суммы 70, 100 и 150.</p></div>
+    </section>
+
+    <section class="slide theme-pink" data-title="Почему здесь есть отступ?" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Важная деталь</p><h2>Отступ собирает команды в блок</h2></div>
+      </header>
+      <div class="content">
+        <div class="bug-grid indent-guides">
+          <div>
+            <div class="code-card compact indent-good">
+              <span class="code-label" style="color:var(--green)">✓</span>
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="kw">if</span> <span class="var">money</span> <span class="op">&gt;=</span> <span class="num">100</span>:
+    <span class="fn">print</span>(<span class="str">"Продаём"</span>)</code></pre>
+            </div>
+            <p class="body-text center" style="margin:20px 0 0">Команда относится к <span class="mono accent">if</span></p>
+          </div>
+          <div>
+            <div class="code-card compact indent-bad">
+              <span class="code-label" style="color:#ff8f8f">✕</span>
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="kw">if</span> <span class="var">money</span> <span class="op">&gt;=</span> <span class="num">100</span>:
+<span class="fn">print</span>(<span class="str">"Продаём"</span>)</code></pre>
+            </div>
+            <p class="body-text center" style="margin:20px 0 0">Python не понимает блок</p>
+          </div>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>48–53 минуты · Отступы</h4><p>Покажите четыре пробела. Сформулируйте просто: отступ говорит Python, какие команды относятся к условию. Не уходите в общую теорию блоков.</p></div>
+    </section>
+
+    <section class="slide theme-violet" data-title="Пять задач на if / else" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Самостоятельная практика</p><h2 class="long-title">Пять задач на <span class="mono">if / else</span></h2></div>
+      </header>
+      <div class="content practice-content" data-task-set>
+        <div class="task-switcher" role="tablist" aria-label="Выберите задачу">
+          <button class="task-tab selected" role="tab" aria-selected="true" data-task-tab="1">1</button>
+          <button class="task-tab" role="tab" aria-selected="false" data-task-tab="2">2</button>
+          <button class="task-tab" role="tab" aria-selected="false" data-task-tab="3">3</button>
+          <button class="task-tab" role="tab" aria-selected="false" data-task-tab="4">4</button>
+          <button class="task-tab" role="tab" aria-selected="false" data-task-tab="5">5</button>
+        </div>
+
+        <article class="practice-task active" data-task-panel="1" aria-hidden="false">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">🎬</span><span class="task-label">Задача 1 из 5</span></div>
+            <h3>Билет в кино</h3>
+            <p><strong>Дано:</strong> возраст зрителя <span class="mono accent">age = 13</span>, а на фильм пускают с 12 лет. <strong>Что сделать:</strong> напишите конструкцию <span class="mono accent">if / else</span>, которая сравнит возраст с 12. Если зритель подходит по возрасту, выведите «Можно на фильм», иначе — «Пока нельзя».</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Сначала напишите программу сами<br>✍️</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">age</span> <span class="op">=</span> <span class="num">13</span>
+
+<span class="kw">if</span> <span class="var">age</span> <span class="op">&gt;=</span> <span class="num">12</span>:
+    <span class="fn">print</span>(<span class="str">"Можно на фильм"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"Пока нельзя"</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="practice-task" data-task-panel="2" aria-hidden="true">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">📦</span><span class="task-label">Задача 2 из 5</span></div>
+            <h3>Бесплатная доставка</h3>
+            <p><strong>Дано:</strong> сумма заказа <span class="mono accent">order = 850</span>. Доставка становится бесплатной при заказе на 1000 ₽ или больше. <strong>Что сделать:</strong> проверьте сумму с помощью <span class="mono accent">if / else</span>. Выведите «Бесплатная доставка», если условие выполнено, иначе — «Доставка платная».</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Сначала напишите программу сами<br>✍️</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">order</span> <span class="op">=</span> <span class="num">850</span>
+
+<span class="kw">if</span> <span class="var">order</span> <span class="op">&gt;=</span> <span class="num">1000</span>:
+    <span class="fn">print</span>(<span class="str">"Бесплатная доставка"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"Доставка платная"</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="practice-task" data-task-panel="3" aria-hidden="true">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">📝</span><span class="task-label">Задача 3 из 5</span></div>
+            <h3>Зачёт</h3>
+            <p><strong>Дано:</strong> ученик набрал <span class="mono accent">score = 75</span> баллов. Для зачёта нужно набрать не меньше 60. <strong>Что сделать:</strong> сравните результат с проходным баллом. Если баллов достаточно, выведите «Зачёт сдан», в противном случае — «Попробуй ещё раз».</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Сначала напишите программу сами<br>✍️</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">score</span> <span class="op">=</span> <span class="num">75</span>
+
+<span class="kw">if</span> <span class="var">score</span> <span class="op">&gt;=</span> <span class="num">60</span>:
+    <span class="fn">print</span>(<span class="str">"Зачёт сдан"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"Попробуй ещё раз"</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="practice-task" data-task-panel="4" aria-hidden="true">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">🔋</span><span class="task-label">Задача 4 из 5</span></div>
+            <h3>Заряд батареи</h3>
+            <p><strong>Дано:</strong> заряд батареи <span class="mono accent">battery = 15</span> процентов. При заряде 20% или меньше устройство нужно подключить к питанию. <strong>Что сделать:</strong> составьте условие с <span class="mono accent">if / else</span>. Выведите «Поставь на зарядку» или, если заряд выше 20%, «Заряда достаточно».</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Сначала напишите программу сами<br>✍️</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">battery</span> <span class="op">=</span> <span class="num">15</span>
+
+<span class="kw">if</span> <span class="var">battery</span> <span class="op">&lt;=</span> <span class="num">20</span>:
+    <span class="fn">print</span>(<span class="str">"Поставь на зарядку"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"Заряда достаточно"</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="practice-task" data-task-panel="5" aria-hidden="true">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">🔐</span><span class="task-label">Задача 5 из 5</span></div>
+            <h3>Секретный код</h3>
+            <p><strong>Дано:</strong> пользователь ввёл <span class="mono accent">code = 1234</span>, и правильный секретный код тоже равен 1234. <strong>Что сделать:</strong> сравните два значения оператором <span class="mono accent">==</span>. При совпадении выведите «Доступ разрешён», иначе — «Неверный код».</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Сначала напишите программу сами<br>✍️</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">code</span> <span class="op">=</span> <span class="num">1234</span>
+
+<span class="kw">if</span> <span class="var">code</span> <span class="op">==</span> <span class="num">1234</span>:
+    <span class="fn">print</span>(<span class="str">"Доступ разрешён"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"Неверный код"</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div class="teacher-note"><h4>53–65 минут · Пять задач</h4><p>Переключайте задания кнопками 1–5. На каждое дайте около двух минут самостоятельной работы, затем покажите код и разберите знак сравнения. Можно распределить задачи между парами.</p></div>
+    </section>
+
+    <section class="slide theme-sky" data-title="Как работает elif" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Новый вариант</p><h2><span class="mono accent">elif</span> проверяет ещё одно условие</h2></div>
+      </header>
+      <div class="content two-col">
+        <div class="rule-stack elif-stack">
+          <div class="rule">
+            <div class="rule-word mono">if</div>
+            <div class="rule-arrow">→</div>
+            <div class="rule-text">Проверяем первое условие</div>
+          </div>
+          <div class="rule">
+            <div class="rule-word mono">elif</div>
+            <div class="rule-arrow">→</div>
+            <div class="rule-text">Если не подошло — проверяем следующее</div>
+          </div>
+          <div class="rule">
+            <div class="rule-word mono">else</div>
+            <div class="rule-arrow">→</div>
+            <div class="rule-text">Если ничего не подошло</div>
+          </div>
+        </div>
+        <div>
+          <div class="code-card compact">
+            <div class="code-dots"><i></i><i></i><i></i></div>
+            <pre><code><span class="var">score</span> <span class="op">=</span> <span class="num">82</span>
+
+<span class="kw">if</span> <span class="var">score</span> <span class="op">&gt;=</span> <span class="num">90</span>:
+    <span class="fn">print</span>(<span class="str">"5"</span>)
+<span class="line-focus"><span class="kw">elif</span> <span class="var">score</span> <span class="op">&gt;=</span> <span class="num">70</span>:</span>
+    <span class="fn">print</span>(<span class="str">"4"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"3"</span>)</code></pre>
+          </div>
+          <p class="body-text" style="margin:20px 0 0"><strong>Важно:</strong> Python идёт сверху вниз и выполняет только первую подходящую ветку.</p>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>Перед задачами · Короткая теория про elif</h4><p>Прочитайте цепочку сверху вниз. Для score = 82 первая проверка ложная, elif — истинный, поэтому программа печатает «4» и дальше уже не проверяет.</p></div>
+    </section>
+
+    <section class="slide theme-orange" data-title="Задачи с elif и вложенными условиями" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Следующий уровень</p><h2 class="long-title">Задачи с <span class="mono">elif</span> и вложенными условиями</h2></div>
+      </header>
+      <div class="content practice-content advanced-practice" data-task-set>
+        <div class="task-switcher" role="tablist" aria-label="Выберите сложную задачу">
+          <button class="task-tab selected" role="tab" aria-selected="true" data-task-tab="1">1</button>
+          <button class="task-tab" role="tab" aria-selected="false" data-task-tab="2">2</button>
+          <button class="task-tab" role="tab" aria-selected="false" data-task-tab="3">3</button>
+        </div>
+
+        <article class="practice-task active" data-task-panel="1" aria-hidden="false">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">🏆</span><span class="task-label">Задача 1 из 3 · elif</span></div>
+            <h3>Оценка по баллам</h3>
+            <p><strong>Дано:</strong> результат <span class="mono accent">score = 82</span>. За 90 баллов и больше ставят «5», за 70–89 баллов — «4», за результат ниже 70 — «3». <strong>Что сделать:</strong> напишите цепочку <span class="mono accent">if / elif / else</span> и выведите подходящую оценку. Проверяйте пороги сверху вниз.</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Сначала напишите программу сами<br>✍️</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">score</span> <span class="op">=</span> <span class="num">82</span>
+
+<span class="kw">if</span> <span class="var">score</span> <span class="op">&gt;=</span> <span class="num">90</span>:
+    <span class="fn">print</span>(<span class="str">"Оценка 5"</span>)
+<span class="kw">elif</span> <span class="var">score</span> <span class="op">&gt;=</span> <span class="num">70</span>:
+    <span class="fn">print</span>(<span class="str">"Оценка 4"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"Оценка 3"</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="practice-task" data-task-panel="2" aria-hidden="true">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">🌡️</span><span class="task-label">Задача 2 из 3 · elif</span></div>
+            <h3>Какая погода?</h3>
+            <p><strong>Дано:</strong> температура <span class="mono accent">temperature = 15</span>. При 25 °C и выше считаем, что «Жарко»; от 10 до 24 °C — «Прохладно»; ниже 10 °C — «Холодно». <strong>Что сделать:</strong> выберите и выведите один результат с помощью <span class="mono accent">if / elif / else</span>.</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Python проверяет условия сверху вниз<br>🔎</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">temperature</span> <span class="op">=</span> <span class="num">15</span>
+
+<span class="kw">if</span> <span class="var">temperature</span> <span class="op">&gt;=</span> <span class="num">25</span>:
+    <span class="fn">print</span>(<span class="str">"Жарко"</span>)
+<span class="kw">elif</span> <span class="var">temperature</span> <span class="op">&gt;=</span> <span class="num">10</span>:
+    <span class="fn">print</span>(<span class="str">"Прохладно"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"Холодно"</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="practice-task" data-task-panel="3" aria-hidden="true">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">🎟️</span><span class="task-label">Задача 3 из 3 · два яруса</span></div>
+            <h3>Вход на мероприятие</h3>
+            <p><strong>Дано:</strong> <span class="mono accent">age = 13</span> и <span class="mono accent">has_ticket = True</span>. На мероприятие можно с 12 лет и только с билетом. <strong>Что сделать:</strong> сначала проверьте возраст. Внутри подходящей ветки вторым <span class="mono accent">if</span> проверьте билет. Выведите «Проходите», «Нужен билет» или «Пока нельзя».</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Один <span class="mono">if</span> можно вложить в другой<br>🪆</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">age</span> <span class="op">=</span> <span class="num">13</span>
+<span class="var">has_ticket</span> <span class="op">=</span> <span class="kw">True</span>
+
+<span class="kw">if</span> <span class="var">age</span> <span class="op">&gt;=</span> <span class="num">12</span>:
+    <span class="kw">if</span> <span class="var">has_ticket</span>:
+        <span class="fn">print</span>(<span class="str">"Проходите"</span>)
+    <span class="kw">else</span>:
+        <span class="fn">print</span>(<span class="str">"Нужен билет"</span>)
+<span class="kw">else</span>:
+    <span class="fn">print</span>(<span class="str">"Пока нельзя"</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div class="teacher-note"><h4>65–77 минут · elif и вложенные условия</h4><p>Первые две задачи закрепляют порядок if → elif → else. В третьей нарисуйте два яруса отступов и проговорите: внутренняя проверка запускается только после внешней.</p></div>
+    </section>
+
+    <section class="slide theme-mint" data-title="Тернарный оператор" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Короткая запись</p><h2 class="long-title">Тернарный оператор — <span class="accent">if / else</span> в одну строку</h2></div>
+      </header>
+      <div class="content">
+        <div class="ternary-compare">
+          <div class="ternary-block">
+            <p class="ternary-label">Обычная запись</p>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="kw">if</span> <span class="var">money</span> <span class="op">&gt;=</span> <span class="num">100</span>:
+    <span class="var">msg</span> <span class="op">=</span> <span class="str">"Да"</span>
+<span class="kw">else</span>:
+    <span class="var">msg</span> <span class="op">=</span> <span class="str">"Нет"</span></code></pre>
+            </div>
+          </div>
+          <div class="ternary-arrow" aria-hidden="true">→</div>
+          <div class="ternary-block">
+            <p class="ternary-label">В одну строку</p>
+            <div class="code-card compact ternary-one-line">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">msg</span> <span class="op">=</span> <span class="str">"Да"</span> <span class="kw">if</span> <span class="var">money</span> <span class="op">&gt;=</span> <span class="num">100</span> <span class="kw">else</span> <span class="str">"Нет"</span>
+
+<span class="fn">print</span>(<span class="var">msg</span>)</code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="ternary-formula mono"><span class="str">значение_если_да</span> <span class="kw">if</span> условие <span class="kw">else</span> <span class="str">значение_если_нет</span></div>
+      </div>
+      <div class="teacher-note"><h4>77–82 минуты · Тернарный оператор</h4><p>Покажите связь с обычным if/else. Подчеркните: короткую запись удобно использовать только для простого выбора значения; сложные программы лучше оставлять многострочными.</p></div>
+    </section>
+
+    <section class="slide theme-pink" data-title="Как читать тернарный оператор" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Разбор синтаксиса</p><h2 class="long-title">Как работает тернарный оператор</h2></div>
+      </header>
+      <div class="content">
+        <div class="ternary-breakdown">
+          <div class="code-card ternary-syntax">
+            <div class="code-dots"><i></i><i></i><i></i></div>
+            <pre><code><span class="var">msg</span> <span class="op">=</span> <span class="str">"Да"</span> <span class="kw">if</span> <span class="var">money</span> <span class="op">&gt;=</span> <span class="num">100</span> <span class="kw">else</span> <span class="str">"Нет"</span></code></pre>
+          </div>
+          <div class="ternary-steps">
+            <div class="ternary-step">
+              <span class="ternary-step-number">1</span>
+              <strong>Проверяем условие</strong>
+              <p><span class="mono">money &gt;= 100</span> даёт <span class="mono">True</span> или <span class="mono">False</span>.</p>
+            </div>
+            <div class="ternary-step-arrow" aria-hidden="true">→</div>
+            <div class="ternary-step">
+              <span class="ternary-step-number">2А</span>
+              <strong>Если <span class="mono">True</span></strong>
+              <p>Берём значение слева от <span class="mono">if</span>: строку <span class="mono">"Да"</span>.</p>
+            </div>
+            <div class="ternary-step-arrow ternary-step-or" aria-hidden="true">или</div>
+            <div class="ternary-step">
+              <span class="ternary-step-number">2Б</span>
+              <strong>Если <span class="mono">False</span></strong>
+              <p>Берём значение после <span class="mono">else</span>: строку <span class="mono">"Нет"</span>.</p>
+            </div>
+          </div>
+          <p class="ternary-outcome"><span class="mono">money = 120</span> → <span class="mono">msg = "Да"</span> &nbsp;&nbsp;·&nbsp;&nbsp; <span class="mono">money = 60</span> → <span class="mono">msg = "Нет"</span></p>
+        </div>
+      </div>
+      <div class="teacher-note"><h4>После знакомства · Разбор тернарного оператора</h4><p>Начните с условия в середине, затем покажите два возможных значения. Подчеркните: выражение выбирает одно значение, которое записывается в переменную msg.</p></div>
+    </section>
+
+    <section class="slide theme-violet" data-title="Финальный челлендж" aria-hidden="true">
+      <header class="slide-head">
+        <div><p class="kicker">Собираем всё вместе</p><h2 class="long-title">Три финальные задачи</h2></div>
+      </header>
+      <div class="content practice-content final-practice" data-task-set>
+        <div class="task-switcher" role="tablist" aria-label="Выберите финальную задачу">
+          <button class="task-tab selected" role="tab" aria-selected="true" data-task-tab="1">1</button>
+          <button class="task-tab" role="tab" aria-selected="false" data-task-tab="2">2</button>
+          <button class="task-tab" role="tab" aria-selected="false" data-task-tab="3">3</button>
+        </div>
+
+        <article class="practice-task active" data-task-panel="1" aria-hidden="false">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">⚡</span><span class="task-label">Задача 1 из 3 · тернарный оператор</span></div>
+            <h3>Тепло или холодно?</h3>
+            <p><strong>Дано:</strong> температура <span class="mono accent">temp = 18</span>. Значение 15 °C и выше считаем тёплой погодой. <strong>Что сделать:</strong> одним тернарным выражением запишите в переменную <span class="mono accent">msg</span> строку «Тепло», если условие истинно, иначе — «Холодно». Затем выведите <span class="mono accent">msg</span>.</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Решение должно содержать один <span class="mono">if</span> и один <span class="mono">else</span><br>⚡</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">temp</span> <span class="op">=</span> <span class="num">18</span>
+
+<span class="var">msg</span> <span class="op">=</span> <span class="str">"Тепло"</span> <span class="kw">if</span> <span class="var">temp</span> <span class="op">&gt;=</span> <span class="num">15</span> <span class="kw">else</span> <span class="str">"Холодно"</span>
+<span class="fn">print</span>(<span class="var">msg</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="practice-task" data-task-panel="2" aria-hidden="true">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">🏅</span><span class="task-label">Задача 2 из 3 · elif + тернарный</span></div>
+            <h3>Оценка и бонус</h3>
+            <p><strong>Дано:</strong> <span class="mono accent">score = 82</span> и <span class="mono accent">bonus = True</span>. От 90 баллов — оценка 5, от 70 — 4, иначе — 3. <strong>Что сделать:</strong> цепочкой <span class="mono accent">if / elif / else</span> запишите оценку в <span class="mono accent">grade</span>. Тернарным оператором выберите текст «с бонусом» или «без бонуса», затем выведите оба значения.</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Сначала выберите оценку,<br>затем — подпись о бонусе<br>🧩</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">score</span> <span class="op">=</span> <span class="num">82</span>
+<span class="var">bonus</span> <span class="op">=</span> <span class="kw">True</span>
+
+<span class="kw">if</span> <span class="var">score</span> <span class="op">&gt;=</span> <span class="num">90</span>:
+    <span class="var">grade</span> <span class="op">=</span> <span class="num">5</span>
+<span class="kw">elif</span> <span class="var">score</span> <span class="op">&gt;=</span> <span class="num">70</span>:
+    <span class="var">grade</span> <span class="op">=</span> <span class="num">4</span>
+<span class="kw">else</span>:
+    <span class="var">grade</span> <span class="op">=</span> <span class="num">3</span>
+
+<span class="var">text</span> <span class="op">=</span> <span class="str">"с бонусом"</span> <span class="kw">if</span> <span class="var">bonus</span> <span class="kw">else</span> <span class="str">"без бонуса"</span>
+<span class="fn">print</span>(<span class="var">grade</span>, <span class="var">text</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+
+        <article class="practice-task" data-task-panel="3" aria-hidden="true">
+          <div class="task-prompt">
+            <div class="task-meta"><span class="task-emoji" aria-hidden="true">🚪</span><span class="task-label">Задача 3 из 3 · всё вместе</span></div>
+            <h3>Вход в квест</h3>
+            <p><strong>Дано:</strong> <span class="mono accent">age = 13</span>, <span class="mono accent">ticket = True</span>, <span class="mono accent">parent = False</span>. В квест пускают с 12 лет и с билетом. <strong>Что сделать:</strong> вложенными <span class="mono accent">if / else</span> проверьте возраст и билет. Если вход разрешён, тернарно выберите «С родителем» или «Самостоятельно». Иначе сообщите «Нужен билет» или «Пока нельзя».</p>
+            <button class="action-button" data-show-answer aria-expanded="false">Показать ответ</button>
+          </div>
+          <div class="task-answer">
+            <div class="answer-placeholder">Следите за двумя уровнями отступов<br>🪆</div>
+            <div class="code-card compact">
+              <div class="code-dots"><i></i><i></i><i></i></div>
+              <pre><code><span class="var">age</span> <span class="op">=</span> <span class="num">13</span>
+<span class="var">ticket</span> <span class="op">=</span> <span class="kw">True</span>
+<span class="var">parent</span> <span class="op">=</span> <span class="kw">False</span>
+
+<span class="kw">if</span> <span class="var">age</span> <span class="op">&gt;=</span> <span class="num">12</span>:
+    <span class="kw">if</span> <span class="var">ticket</span>:
+        <span class="var">msg</span> <span class="op">=</span> <span class="str">"С родителем"</span> <span class="kw">if</span> <span class="var">parent</span> <span class="kw">else</span> <span class="str">"Самостоятельно"</span>
+    <span class="kw">else</span>:
+        <span class="var">msg</span> <span class="op">=</span> <span class="str">"Нужен билет"</span>
+<span class="kw">else</span>:
+    <span class="var">msg</span> <span class="op">=</span> <span class="str">"Пока нельзя"</span>
+
+<span class="fn">print</span>(<span class="var">msg</span>)</code></pre>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div class="teacher-note"><h4>82–90 минут · Финальный челлендж</h4><p>Первую задачу решите всем классом, вторую — в парах, третью используйте как задачу со звёздочкой. Показывайте код только после обсуждения.</p></div>
+    </section>
+  </main>
+
+  <nav class="nav-shell" aria-label="Навигация по презентации">
+    <button class="nav-button" id="notesBtn" title="Заметки преподавателя (N)" aria-label="Заметки преподавателя">N</button>
+    <button class="nav-button" id="helpBtn" title="Помощь (?)" aria-label="Показать подсказку">?</button>
+    <button class="nav-button" id="prevBtn" title="Предыдущий слайд (←)" aria-label="Предыдущий слайд">←</button>
+    <span class="counter" id="counter">1 / 17</span>
+    <button class="nav-button" id="nextBtn" title="Следующий слайд (→)" aria-label="Следующий слайд">→</button>
+  </nav>
+
+  <div class="progress-track" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
+  <aside class="notes-panel" id="notesPanel" aria-live="polite"></aside>
+  <div class="help-overlay" id="helpOverlay" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Управление презентацией">
+    <div class="help-card">
+      <h3>Управление презентацией</h3>
+      <div class="shortcut-grid">
+        <kbd>← →</kbd><span>предыдущий / следующий слайд</span>
+        <kbd>Space</kbd><span>открыть ответ или перейти дальше</span>
+        <kbd>F</kbd><span>полноэкранный режим</span>
+        <kbd>N</kbd><span>заметки преподавателя и тайминг</span>
+        <kbd>Home</kbd><span>первый слайд</span>
+        <kbd>End</kbd><span>последний слайд</span>
+        <kbd>Esc</kbd><span>закрыть подсказку</span>
+      </div>
+      <button class="action-button" id="closeHelp" style="margin-top:26px">Понятно</button>
+    </div>
+  </div>
+  <div class="screen-reader" id="announcement" aria-live="assertive"></div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const slides = [...document.querySelectorAll('.slide')];
+      const counter = document.getElementById('counter');
+      const progressBar = document.getElementById('progressBar');
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const notesBtn = document.getElementById('notesBtn');
+      const helpBtn = document.getElementById('helpBtn');
+      const closeHelp = document.getElementById('closeHelp');
+      const helpOverlay = document.getElementById('helpOverlay');
+      const notesPanel = document.getElementById('notesPanel');
+      const announcement = document.getElementById('announcement');
+      let current = 0;
+      let touchStartX = null;
+
+      const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+      function updateNotes() {
+        const note = slides[current].querySelector('.teacher-note');
+        notesPanel.innerHTML = note ? note.innerHTML : '<p>Для этого слайда заметок нет.</p>';
+      }
+
+      function goTo(index, updateHash = true) {
+        const next = clamp(index, 0, slides.length - 1);
+        if (next === current && slides[current].classList.contains('active')) {
+          updateChrome();
+          return;
+        }
+        slides.forEach((slide, i) => {
+          slide.classList.toggle('active', i === next);
+          slide.classList.toggle('leaving', i < next);
+          slide.setAttribute('aria-hidden', i === next ? 'false' : 'true');
+        });
+        current = next;
+        updateChrome();
+        updateNotes();
+        if (updateHash) history.replaceState(null, '', '#' + (current + 1));
+        announcement.textContent = `Слайд ${current + 1} из ${slides.length}: ${slides[current].dataset.title}`;
+      }
+
+      function updateChrome() {
+        counter.textContent = `${current + 1} / ${slides.length}`;
+        progressBar.style.width = `${((current + 1) / slides.length) * 100}%`;
+        prevBtn.disabled = current === 0;
+        nextBtn.disabled = current === slides.length - 1;
+      }
+
+      function revealNext() {
+        const hidden = slides[current].querySelector('[data-step]:not(.revealed)');
+        if (!hidden) return false;
+        const step = hidden.dataset.step;
+        slides[current].querySelectorAll(`[data-step="${step}"]`).forEach(el => el.classList.add('revealed'));
+        const button = slides[current].querySelector('[data-reveal-next]');
+        if (button && !slides[current].querySelector('[data-step]:not(.revealed)')) button.textContent = 'Готово ✓';
+        return true;
+      }
+
+      function next() { goTo(current + 1); }
+      function previous() { goTo(current - 1); }
+
+      prevBtn.addEventListener('click', previous);
+      nextBtn.addEventListener('click', next);
+      document.querySelectorAll('[data-reveal-next]').forEach(button => button.addEventListener('click', revealNext));
+
+      notesBtn.addEventListener('click', () => {
+        updateNotes();
+        notesPanel.classList.toggle('open');
+        notesBtn.setAttribute('aria-pressed', notesPanel.classList.contains('open'));
+      });
+
+      const setHelp = open => {
+        helpOverlay.classList.toggle('open', open);
+        helpOverlay.setAttribute('aria-hidden', open ? 'false' : 'true');
+        if (open) closeHelp.focus();
+      };
+      helpBtn.addEventListener('click', () => setHelp(true));
+      closeHelp.addEventListener('click', () => setHelp(false));
+      helpOverlay.addEventListener('click', event => { if (event.target === helpOverlay) setHelp(false); });
+
+      document.querySelectorAll('[data-person]').forEach(button => {
+        button.addEventListener('click', () => {
+          const yes = button.dataset.outcome === 'yes';
+          button.classList.remove('yes', 'no');
+          button.classList.add(yes ? 'yes' : 'no');
+          button.querySelector('.answer').textContent = yes ? 'Да — денег хватает ✓' : 'Нет — не хватает 30 ₽';
+        });
+      });
+
+      document.querySelectorAll('[data-flip]').forEach(card => {
+        card.addEventListener('click', () => {
+          const yes = card.dataset.answer === 'true';
+          card.classList.add('flipped', yes ? 'true' : 'false');
+          card.querySelector('.result').textContent = yes ? 'True ✓' : 'False ✕';
+        });
+      });
+
+      document.querySelectorAll('[data-task-set]').forEach(taskSet => {
+        taskSet.querySelectorAll('[data-task-tab]').forEach(button => {
+          button.addEventListener('click', () => {
+            const taskIndex = button.dataset.taskTab;
+            taskSet.querySelectorAll('[data-task-tab]').forEach(item => {
+              const selected = item === button;
+              item.classList.toggle('selected', selected);
+              item.setAttribute('aria-selected', selected ? 'true' : 'false');
+            });
+            taskSet.querySelectorAll('[data-task-panel]').forEach(panel => {
+              const active = panel.dataset.taskPanel === taskIndex;
+              panel.classList.toggle('active', active);
+              panel.setAttribute('aria-hidden', active ? 'false' : 'true');
+            });
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-show-answer]').forEach(button => {
+        button.addEventListener('click', () => {
+          const answer = button.closest('[data-task-panel]').querySelector('.task-answer');
+          const visible = answer.classList.toggle('visible');
+          button.textContent = visible ? 'Скрыть ответ' : 'Показать ответ';
+          button.setAttribute('aria-expanded', visible ? 'true' : 'false');
+        });
+      });
+
+      document.addEventListener('keydown', event => {
+        const tag = document.activeElement?.tagName;
+        const isTyping = tag === 'INPUT' || tag === 'TEXTAREA';
+        if (event.key === 'Escape') {
+          setHelp(false);
+          notesPanel.classList.remove('open');
+          return;
+        }
+        if (isTyping) return;
+        if (event.key === 'ArrowRight' || event.key === 'PageDown') { event.preventDefault(); next(); }
+        else if (event.key === 'ArrowLeft' || event.key === 'PageUp') { event.preventDefault(); previous(); }
+        else if (event.key === 'Home') { event.preventDefault(); goTo(0); }
+        else if (event.key === 'End') { event.preventDefault(); goTo(slides.length - 1); }
+        else if (event.key === ' ' && !['BUTTON', 'A'].includes(tag)) { event.preventDefault(); if (!revealNext()) next(); }
+        else if (event.key.toLowerCase() === 'f') {
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+          else document.exitFullscreen?.();
+        }
+        else if (event.key.toLowerCase() === 'n') notesBtn.click();
+        else if (event.key === '?' || (event.key === '/' && event.shiftKey)) setHelp(true);
+      });
+
+      document.addEventListener('touchstart', event => { touchStartX = event.changedTouches[0].clientX; }, { passive: true });
+      document.addEventListener('touchend', event => {
+        if (touchStartX === null) return;
+        const delta = event.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(delta) > 70) delta < 0 ? next() : previous();
+        touchStartX = null;
+      }, { passive: true });
+
+      const hashSlide = Number(location.hash.replace('#', ''));
+      if (Number.isInteger(hashSlide) && hashSlide >= 1 && hashSlide <= slides.length) current = hashSlide - 1;
+      slides.forEach((slide, i) => {
+        slide.classList.toggle('active', i === current);
+        slide.classList.toggle('leaving', i < current);
+        slide.setAttribute('aria-hidden', i === current ? 'false' : 'true');
+      });
+      updateChrome();
+      updateNotes();
+    })();
+  </script>
+</body>
+</html>
