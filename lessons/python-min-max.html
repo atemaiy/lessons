@@ -21,7 +21,8 @@ mx = x</code></pre></div></div></div></section>
 <section class="slide" data-title="Поиск в потоке до нуля" ><header><p class="kicker">Один рекорд</p><h2>Поиск в потоке до нуля</h2></header><div class="content"><div class="columns"><div><pre><code>mx = int(input())
 x = int(input())
 while x != 0:
-    # сравнение и обновление mx
+    if x &gt; mx:
+        mx = x
     x = int(input())
 print(mx)</code></pre></div><div><p>Первый ввод задаёт рекорд.</p><p>Цикл обрабатывает следующие числа, пока не встретит 0.</p><p>Итоговый вывод находится после цикла.</p></div></div></div></section>
 <section class="slide" data-title="Минимум из трёх" id="task-1" data-task="1"><header><p class="kicker">Задача 1</p><h2>Минимум из трёх</h2></header><div class="content"><div class="columns"><div><p>Введите три целых числа с разных строк. Выведите наименьшее. Обновляйте переменную mn последовательными сравнениями; цикл пока не обязателен.</p><button class="action" type="button" data-reveal data-label="Подсказка" aria-expanded="false">Подсказка</button><div class="answer" hidden>Примите первое число за минимум. Каждое из двух следующих сравните с текущим mn.</div></div><div><div class="io"><div><h3>Ввод</h3><pre><code>-4
